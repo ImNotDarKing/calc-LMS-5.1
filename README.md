@@ -50,7 +50,7 @@ calc-LMS-orchestrator/
 1. **Клонирование репозитория:**
 
    ```bash
-   git clone https://github.com/yourusername/calc-LMS-orchestrator.git
+   git clone https://github.com/ImNotDarKing/calc-LMS-2.10
    cd calc-LMS-orchestrator
    ```
 
