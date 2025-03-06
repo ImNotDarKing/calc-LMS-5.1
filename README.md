@@ -51,7 +51,7 @@ calc-LMS-orchestrator/
 
    ```bash
    git clone https://github.com/ImNotDarKing/calc-LMS-2.10
-   cd calc-LMS-orchestrator
+   calc-LMS-2.10
    ```
 
 2. **Обновление зависимостей:**
