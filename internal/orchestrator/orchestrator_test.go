@@ -21,10 +21,17 @@ func TestAddExpression_SingleDigit(t *testing.T) {
 }
 
 func TestAddExpression_MultiDigit(t *testing.T) {
-	_, err := orchestrator.AddExpression("12+3")
-	if err == nil {
-		t.Errorf("Expected error for multi-digit number, got nil")
-	}
+    id, err := orchestrator.AddExpression("12+3")
+    if err != nil {
+        t.Errorf("Expected no error, got %v", err)
+    }
+    expr, found := orchestrator.GetExpression(id)
+    if !found {
+        t.Fatalf("Expression #%d not found", id)
+    }
+    if expr.Status != "pending" && expr.Status != "completed" {
+        t.Errorf("Unexpected status for multi-digit expr: %s", expr.Status)
+    }
 }
 
 func TestAddExpression_Parentheses(t *testing.T) {
