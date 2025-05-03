@@ -140,36 +140,41 @@ func parseTerm(p *parser) (*Node, error) {
 }
 
 func parseFactor(p *parser) (*Node, error) {
-	p.skipWhitespace()
-	ch := p.peek()
-	if ch >= '0' && ch <= '9' {
-		p.next()
-		if p.pos < len(p.input) {
-			nextCh := p.input[p.pos]
-			if nextCh >= '0' && nextCh <= '9' {
-				return nil, errors.New("multi-digit numbers are not allowed")
-			}
-		}
-		value, _ := strconv.ParseFloat(string(ch), 64)
-		return &Node{
-			Op:    "",
-			Value: value,
-		}, nil
-	} else if ch == '(' {
-		p.next()
-		node, err := parseExpr(p)
-		if err != nil {
-			return nil, err
-		}
-		p.skipWhitespace()
-		if p.peek() != ')' {
-			return nil, errors.New("missing closing parenthesis")
-		}
-		p.next()
-		return node, nil
-	}
-	return nil, errors.New("unexpected character: " + string(ch))
+    p.skipWhitespace()
+    ch := p.peek()
+    if ch >= '0' && ch <= '9' {
+        start := p.pos
+        for p.pos < len(p.input) && p.input[p.pos] >= '0' && p.input[p.pos] <= '9' {
+            p.pos++
+        }
+        if p.pos < len(p.input) && p.input[p.pos] == '.' {
+            p.pos++
+            for p.pos < len(p.input) && p.input[p.pos] >= '0' && p.input[p.pos] <= '9' {
+                p.pos++
+            }
+        }
+        numStr := p.input[start:p.pos]
+        val, err := strconv.ParseFloat(numStr, 64)
+        if err != nil {
+            return nil, err
+        }
+        return &Node{Op: "", Value: val}, nil
+    } else if ch == '(' {
+        p.next()
+        node, err := parseExpr(p)
+        if err != nil {
+            return nil, err
+        }
+        p.skipWhitespace()
+        if p.peek() != ')' {
+            return nil, errors.New("missing closing parenthesis")
+        }
+        p.next()
+        return node, nil
+    }
+    return nil, errors.New("unexpected character: " + string(ch))
 }
+
 
 func buildTasks(node *Node, exprID int, taskIDs *[]int) (float64, int, error) {
 	if node == nil {
