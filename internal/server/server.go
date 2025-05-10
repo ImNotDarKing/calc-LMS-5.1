@@ -1,7 +1,7 @@
 package server
 
 import (
-	"calc-LMS-orchestrator/internal/api/v1"
+	"github.com/ImNotDarKing/calc-LMS-5.1/internal/api/v1"
 	"log"
 	"net/http"
 	"path/filepath"

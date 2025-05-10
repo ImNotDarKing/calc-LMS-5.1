@@ -1,7 +1,7 @@
 package orchestrator_test
 
 import (
-	"calc-LMS-orchestrator/internal/orchestrator"
+	"github.com/ImNotDarKing/calc-LMS-5.1/internal/orchestrator"
 	"math"
 	"testing"
 )

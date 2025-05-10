@@ -1,7 +1,7 @@
 package main
 
 import (
-	"calc-LMS-orchestrator/internal/server"
+	"github.com/ImNotDarKing/calc-LMS-5.1/internal/server"
 )
 
 func main() {

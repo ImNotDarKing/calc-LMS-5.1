@@ -1,7 +1,7 @@
 package v1
 
 import (
-	"calc-LMS-orchestrator/internal/orchestrator"
+	"github.com/ImNotDarKing/calc-LMS-5.1/internal/orchestrator"
 	"encoding/json"
 	"io"
 	"net/http"
