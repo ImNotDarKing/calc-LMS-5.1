@@ -23,3 +23,10 @@ button {
     padding: 10px;
     border: 1px solid #ccc;
 }
+
+body { font-family: Arial, sans-serif; margin: 20px; }
+.hidden { display: none; }
+input, button { margin: 5px 0; padding: 8px; width: 100%; max-width: 300px; }
+.container { max-width: 500px; margin: auto; }
+ul { list-style: none; padding: 0; }
+li { margin: 10px 0; padding: 10px; border: 1px solid #ccc; }

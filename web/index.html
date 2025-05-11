@@ -1,20 +1,35 @@
-<!DOCTYPE html>
-<html lang="ru">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Калькулятор выражений</title>
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="style.css">
+    <title>Calc LMS</title>
 </head>
 <body>
-    <h1>Распределённый калькулятор</h1>
-    <div class="calculator">
-        <input type="text" id="expression" placeholder="Введите выражение (например, 2+3)" />
-        <button id="submitBtn">Вычислить</button>
+<div class="container">
+    <h1>Calc LMS</h1>
+
+    <div id="auth-section">
+        <h2>Register</h2>
+        <input type="text" id="reg-login" placeholder="Login">
+        <input type="password" id="reg-password" placeholder="Password">
+        <button id="btn-register">Register</button>
+        <hr>
+        <h2>Login</h2>
+        <input type="text" id="login-login" placeholder="Login">
+        <input type="password" id="login-password" placeholder="Password">
+        <button id="btn-login">Login</button>
     </div>
-    <div class="results">
-        <h2>Выражения</h2>
-        <ul id="expressionsList"></ul>
+
+    <div id="app-section" class="hidden">
+        <button id="btn-logout">Logout</button>
+        <h2>Submit Expression</h2>
+        <input type="text" id="expr-input" placeholder="Enter expression, e.g. 2+2">
+        <button id="btn-submit">Calculate</button>
+        <h2>Your Expressions</h2>
+        <ul id="expr-list"></ul>
     </div>
-    <script src="main.js"></script>
+</div>
 </body>
 </html>
