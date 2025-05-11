@@ -30,7 +30,6 @@ func TestParseExpression_Simple(t *testing.T) {
 func TestBuildTasks_And_Complete(t *testing.T) {
     resetState()
 
-    // === Инициализируем in-memory БД, чтобы db.UpdateExpressionResult не упал на nil
     if err := db.InitDB(context.Background(), ":memory:"); err != nil {
         t.Fatalf("db.InitDB: %v", err)
     }
@@ -38,7 +37,6 @@ func TestBuildTasks_And_Complete(t *testing.T) {
         t.Fatalf("db.CreateTables: %v", err)
     }
 
-    // Строим простое дерево: 5 - 2
     var ids []int
     _, rootID, err := buildTasks(&Node{
         Op:    "-",
@@ -49,7 +47,6 @@ func TestBuildTasks_And_Complete(t *testing.T) {
         t.Fatalf("buildTasks error: %v", err)
     }
 
-    // Ручная инициализация записи выражения в памяти
     expressions[42] = &Expression{
         ID:         42,
         Raw:        "5-2",
@@ -58,7 +55,6 @@ func TestBuildTasks_And_Complete(t *testing.T) {
         RootTaskID: rootID,
     }
 
-    // Теперь завершаем корневой таск
     if err := CompleteTask(rootID, 3); err != nil {
         t.Fatalf("CompleteTask error: %v", err)
     }
@@ -80,7 +76,6 @@ func TestAddExpression_And_Queue(t *testing.T) {
         t.Fatalf("CreateTables: %v", err)
     }
 
-    // добавляем очень простое выражение — только один таск
     id, err := AddExpression("7+8", 100)
     if err != nil {
         t.Fatalf("AddExpression: %v", err)
