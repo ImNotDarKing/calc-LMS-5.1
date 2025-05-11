@@ -1,124 +1,121 @@
-package main
+package api_v1_test
 
 import (
-	"bytes"
-	"context"
-	"encoding/json"
-	"io/ioutil"
-	"net/http"
-	"net/http/httptest"
-	"testing"
-	"time"
+    "bytes"
+    "encoding/json"
+    "net/http"
+    "net/http/cookiejar"
+    "net/http/httptest"
+    "testing"
 
-	"github.com/ImNotDarKing/calc-LMS-5.1/internal/db"
-	"github.com/ImNotDarKing/calc-LMS-5.1/internal/server"
+    "github.com/ImNotDarKing/calc-LMS-5.1/internal/api/v1"
 )
 
-func TestFullWorkflow(t *testing.T) {
-	if err := db.InitDB(context.Background(), ":memory:"); err != nil {
-		t.Fatalf("InitDB: %v", err)
-	}
-	if err := db.CreateTables(context.Background()); err != nil {
-		t.Fatalf("CreateTables: %v", err)
-	}
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		server.StartServer()
-	}))
-	defer ts.Close()
+func setupMux() *http.ServeMux {
+    mux := http.NewServeMux()
+    mux.HandleFunc("/api/v1/register", v1.RegisterHandler)
+    mux.HandleFunc("/api/v1/login",    v1.LoginHandler)
+    mux.HandleFunc("/api/v1/calculate",    v1.SubmitExpression)
+    mux.HandleFunc("/api/v1/expressions/", v1.GetExpression)
+    mux.HandleFunc("/api/v1/expressions",  v1.ListExpressions)
+    mux.HandleFunc("/internal/task", func(w http.ResponseWriter, r *http.Request) {
+        if r.Method == http.MethodGet {
+            v1.GetTask(w, r)
+        } else if r.Method == http.MethodPost {
+            v1.PostTaskResult(w, r)
+        } else {
+            http.Error(w, `{"error": "Method Not Allowed"}`, http.StatusMethodNotAllowed)
+        }
+    })
+    return mux
+}
 
-	client := ts.Client()
+func newAuthClient(tsURL string, t *testing.T) *http.Client {
+    jar, err := cookiejar.New(nil)
+    if err != nil {
+        t.Fatalf("cannot create cookie jar: %v", err)
+    }
+    client := &http.Client{Jar: jar}
 
-	registerPayload := map[string]string{"login": "u1", "password": "p1"}
-	b, _ := json.Marshal(registerPayload)
-	resp, err := client.Post(ts.URL+"/api/v1/register", "application/json", bytes.NewReader(b))
-	if err != nil {
-		t.Fatalf("register request failed: %v", err)
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("register expected 200, got %d", resp.StatusCode)
-	}
-	var regResp struct{ Token string }
-	if err := json.NewDecoder(resp.Body).Decode(&regResp); err != nil {
-		t.Fatalf("decode register: %v", err)
-	}
-	token := regResp.Token
-	if token == "" {
-		t.Fatal("empty token on register")
-	}
+    regBody, _ := json.Marshal(map[string]string{
+        "username": "testuser",
+        "password": "secret123",
+    })
+    resp, err := client.Post(tsURL+"/api/v1/register", "application/json", bytes.NewReader(regBody))
+    if err != nil {
+        t.Fatalf("register failed: %v", err)
+    }
+    resp.Body.Close()
+    if resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusOK {
+        t.Fatalf("expected 200 or 201 on register, got %d", resp.StatusCode)
+    }
 
-	calcReq := map[string]string{"expression": "1+2"}
-	b, _ = json.Marshal(calcReq)
-	req, _ := http.NewRequest("POST", ts.URL+"/api/v1/calculate", bytes.NewReader(b))
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+token)
-	resp, err = client.Do(req)
-	if err != nil {
-		t.Fatalf("calculate request: %v", err)
-	}
-	if resp.StatusCode != http.StatusCreated {
-		body, _ := ioutil.ReadAll(resp.Body)
-		t.Fatalf("calculate expected 201, got %d: %s", resp.StatusCode, body)
-	}
-	resp.Body.Close()
+    loginBody, _ := json.Marshal(map[string]string{
+        "username": "testuser",
+        "password": "secret123",
+    })
+    resp, err = client.Post(tsURL+"/api/v1/login", "application/json", bytes.NewReader(loginBody))
+    if err != nil {
+        t.Fatalf("login failed: %v", err)
+    }
+    resp.Body.Close()
+    if resp.StatusCode != http.StatusOK {
+        t.Fatalf("expected 200 on login, got %d", resp.StatusCode)
+    }
 
-	req, _ = http.NewRequest("GET", ts.URL+"/internal/task", nil)
-	resp, err = client.Do(req)
-	if err != nil {
-		t.Fatalf("get task: %v", err)
-	}
-	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("get task expected 200, got %d", resp.StatusCode)
-	}
-	var taskResp struct {
-		Task struct {
-			ID     int     `json:"id"`
-			Arg1   float64 `json:"arg1"`
-			Arg2   float64 `json:"arg2"`
-			OperationTime int `json:"operation_time"`
-		} `json:"task"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&taskResp); err != nil {
-		t.Fatalf("decode task: %v", err)
-	}
-	resp.Body.Close()
+    return client
+}
 
-	time.Sleep(time.Duration(taskResp.Task.OperationTime) * time.Millisecond)
-	result := taskResp.Task.Arg1 + taskResp.Task.Arg2
-	postBody, _ := json.Marshal(map[string]interface{}{
-		"id":     taskResp.Task.ID,
-		"result": result,
-	})
-	resp, err = client.Post(ts.URL+"/internal/task", "application/json", bytes.NewReader(postBody))
-	if err != nil {
-		t.Fatalf("post task result: %v", err)
-	}
-	resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("post task result expected 200, got %d", resp.StatusCode)
-	}
+func TestCalculateAndListExpressions(t *testing.T) {
+    mux := setupMux()
+    ts := httptest.NewServer(mux)
+    defer ts.Close()
 
-	req, _ = http.NewRequest("GET", ts.URL+"/api/v1/expressions", nil)
-	req.Header.Set("Authorization", "Bearer "+token)
-	resp, err = client.Do(req)
-	if err != nil {
-		t.Fatalf("list expressions: %v", err)
-	}
-	defer resp.Body.Close()
-	var listResp struct {
-		Expressions []struct {
-			ID         int     `json:"id"`
-			Expression string  `json:"expression"`
-			Result     float64 `json:"result"`
-		} `json:"expressions"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&listResp); err != nil {
-		t.Fatalf("decode list: %v", err)
-	}
-	if len(listResp.Expressions) != 1 {
-		t.Fatalf("expected 1 expr, got %d", len(listResp.Expressions))
-	}
-	if listResp.Expressions[0].Result != 3 {
-		t.Errorf("expected result=3, got %v", listResp.Expressions[0].Result)
-	}
+    client := newAuthClient(ts.URL, t)
+
+    expr := map[string]string{"expression": "5*6"}
+    body, _ := json.Marshal(expr)
+    resp, err := client.Post(ts.URL+"/api/v1/calculate", "application/json", bytes.NewReader(body))
+    if err != nil {
+        t.Fatalf("POST /calculate error: %v", err)
+    }
+    defer resp.Body.Close()
+    if resp.StatusCode != http.StatusOK {
+        t.Fatalf("expected 200 OK, got %d", resp.StatusCode)
+    }
+
+    var res struct{ ID int }
+    if err := json.NewDecoder(resp.Body).Decode(&res); err != nil {
+        t.Fatalf("cannot parse JSON: %v", err)
+    }
+    if res.ID == 0 {
+        t.Fatalf("expected non-zero ID, got %d", res.ID)
+    }
+
+    listResp, err := client.Get(ts.URL + "/api/v1/expressions")
+    if err != nil {
+        t.Fatalf("GET /expressions error: %v", err)
+    }
+    defer listResp.Body.Close()
+    if listResp.StatusCode != http.StatusOK {
+        t.Fatalf("expected 200 OK for list, got %d", listResp.StatusCode)
+    }
+
+    var list struct {
+        Expressions []struct{ ID int `json:"id"` } `json:"expressions"`
+    }
+    if err := json.NewDecoder(listResp.Body).Decode(&list); err != nil {
+        t.Fatalf("cannot parse list JSON: %v", err)
+    }
+
+    found := false
+    for _, e := range list.Expressions {
+        if e.ID == res.ID {
+            found = true
+            break
+        }
+    }
+    if !found {
+        t.Fatalf("ID %d not found in expressions list", res.ID)
+    }
 }

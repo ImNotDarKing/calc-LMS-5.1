@@ -68,7 +68,6 @@ func TestBuildTasks_And_Complete(t *testing.T) {
 
 func TestAddExpression_And_Queue(t *testing.T) {
     resetState()
-    // инициализируем временную sqlite в памяти
     if err := db.InitDB(context.Background(), ":memory:"); err != nil {
         t.Fatalf("InitDB: %v", err)
     }

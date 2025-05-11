@@ -30,22 +30,7 @@ func StartServer() {
 	mux.Handle("/", fs)
 
 	log.Println("Orchestrator server starting on :8080")
-	if err := http.ListenAndServe(":8080", NewRouter()); err != nil {
+	if err := http.ListenAndServe(":8080", mux); err != nil {
 		log.Fatal(err)
 	}
-}
-
-func NewRouter() http.Handler {
-    r := http.NewServeMux()
-
-	mux := http.NewServeMux()
-
-	mux.HandleFunc("/api/v1/register", v1.RegisterHandler)
-	mux.HandleFunc("/api/v1/login",    v1.LoginHandler)
-
-	mux.HandleFunc("/api/v1/calculate", v1.SubmitExpression)
-	mux.HandleFunc("/api/v1/expressions/", v1.GetExpression)
-	mux.HandleFunc("/api/v1/expressions", v1.ListExpressions)
-
-    return r
 }
