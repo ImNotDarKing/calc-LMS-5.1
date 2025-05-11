@@ -173,3 +173,11 @@ func GetExpressionByID(ctx context.Context, id int64) (*Expression, error) {
     }
     return &e, nil
 }
+
+func UpdateExpressionResult(ctx context.Context, id int64, result float64) error {
+    _, err := Conn.ExecContext(ctx,
+        `UPDATE expressions SET result = ? WHERE id = ?`,
+        result, id,
+    )
+    return err
+}

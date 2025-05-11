@@ -271,9 +271,7 @@ func AddExpression(raw string, userID int64) (int, error) {
         return 0, err
     }
 
-    // Дальнейшая внутренняя логика разбивки на задачи…
     var taskIDs []int
-    // Распаковываем корневой taskID в _, чтобы не было ошибки
     _, _, err = buildTasks(node, exprID, &taskIDs)
     if err != nil {
         return 0, err
