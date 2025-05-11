@@ -1,35 +1,74 @@
 package v1
 
 import (
+    "encoding/json"
     "net/http"
+    "strconv"
+    "time"
+
     "github.com/ImNotDarKing/calc-LMS-5.1/internal/db"
-    "github.com/gin-gonic/gin"
     "golang.org/x/crypto/bcrypt"
+    "github.com/golang-jwt/jwt/v4"
 )
 
+var jwtKey = []byte("your-secret-key")
+
 type registerReq struct {
-    Login    string `json:"login"  binding:"required"`
-    Password string `json:"password" binding:"required"`
+    Login    string `json:"login"`
+    Password string `json:"password"`
 }
 
-func RegisterHandler(c *gin.Context) {
-    var r registerReq
-    if c.BindJSON(&r) != nil {
-        c.Status(http.StatusBadRequest)
+func RegisterHandler(w http.ResponseWriter, r *http.Request) {
+    if r.Method != http.MethodPost {
+        http.Error(w, `{"error":"Method Not Allowed"}`, http.StatusMethodNotAllowed)
         return
     }
-    hash, err := bcrypt.GenerateFromPassword([]byte(r.Password), bcrypt.DefaultCost)
+
+    var req registerReq
+    if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+        http.Error(w, `{"error":"Bad Request"}`, http.StatusBadRequest)
+        return
+    }
+    defer r.Body.Close()
+
+    hash, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
     if err != nil {
-        c.Status(http.StatusInternalServerError)
+        http.Error(w, `{"error":"Internal Server Error"}`, http.StatusInternalServerError)
         return
     }
+
     user := &db.User{
-        Login:        r.Login,
+        Login:        req.Login,
         PasswordHash: string(hash),
     }
-    if _, err := db.InsertUser(c.Request.Context(), user); err != nil {
-        c.Status(http.StatusConflict) 
+    id, err := db.InsertUser(r.Context(), user)
+    if err != nil {
+        http.Error(w, `{"error":"Conflict"}`, http.StatusConflict)
         return
     }
-    c.Status(http.StatusOK)
+
+    exp := time.Now().Add(24 * time.Hour)
+    token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.RegisteredClaims{
+        Subject:   strconv.FormatInt(id, 10),
+        ExpiresAt: jwt.NewNumericDate(exp),
+        IssuedAt:  jwt.NewNumericDate(time.Now()),
+    })
+    tstr, err := token.SignedString(jwtKey)
+    if err != nil {
+        http.Error(w, `{"error":"Internal Server Error"}`, http.StatusInternalServerError)
+        return
+    }
+
+    jtok := &db.JWTToken{
+        UserID:    id,
+        Token:     tstr,
+        ExpiresAt: exp,
+    }
+    if _, err := db.InsertJWTToken(r.Context(), jtok); err != nil {
+        http.Error(w, `{"error":"Internal Server Error"}`, http.StatusInternalServerError)
+        return
+    }
+
+    w.Header().Set("Content-Type", "application/json")
+    json.NewEncoder(w).Encode(map[string]string{"token": tstr})
 }

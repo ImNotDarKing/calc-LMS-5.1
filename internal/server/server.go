@@ -9,6 +9,10 @@ import (
 
 func StartServer() {
 	mux := http.NewServeMux()
+
+	mux.HandleFunc("/api/v1/register", v1.RegisterHandler)
+	mux.HandleFunc("/api/v1/login",    v1.LoginHandler)
+
 	mux.HandleFunc("/api/v1/calculate", v1.SubmitExpression)
 	mux.HandleFunc("/api/v1/expressions/", v1.GetExpression)
 	mux.HandleFunc("/api/v1/expressions", v1.ListExpressions)

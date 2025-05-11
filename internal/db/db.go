@@ -161,3 +161,15 @@ func IsJWTTokenValid(ctx context.Context, tok string) (bool, error) {
     }
     return expiresAt.After(time.Now()), nil
 }
+
+func GetExpressionByID(ctx context.Context, id int64) (*Expression, error) {
+    row := Conn.QueryRowContext(ctx,
+        `SELECT id, user_id, expr_text, result FROM expressions WHERE id = ?`,
+        id,
+    )
+    var e Expression
+    if err := row.Scan(&e.ID, &e.UserID, &e.ExprText, &e.Result); err != nil {
+        return nil, err
+    }
+    return &e, nil
+}

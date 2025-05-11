@@ -6,6 +6,8 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"context"
+	"github.com/ImNotDarKing/calc-LMS-5.1/internal/db"
 )
 
 var (
@@ -249,39 +251,35 @@ func nextTaskID() int {
 	return taskCounter
 }
 
-func AddExpression(raw string) (int, error) {
-	exprMutex.Lock()
-	defer exprMutex.Unlock()
-	node, err := parseExpression(raw)
-	if err != nil {
-		return 0, err
-	}
-	exprID := nextExprID()
-	var taskIDs []int
-	_, rootTaskID, err := buildTasks(node, exprID, &taskIDs)
-	if err != nil {
-		return 0, err
-	}
-	exprStatus := "pending"
-	if rootTaskID == 0 {
-		exprStatus = "completed"
-	}
-	expression := &Expression{
-		ID:         exprID,
-		Raw:        raw,
-		Status:     exprStatus,
-		Result:     math.NaN(),
-		TaskIDs:    taskIDs,
-		RootTaskID: rootTaskID,
-	}
-	expressions[exprID] = expression
-	for _, tid := range taskIDs {
-		t := tasks[tid]
-		if t.LeftDependency == 0 && t.RightDependency == 0 {
-			readyTasks = append(readyTasks, t)
-		}
-	}
-	return exprID, nil
+func AddExpression(raw string, userID int64) (int, error) {
+    exprMutex.Lock()
+    defer exprMutex.Unlock()
+
+    node, err := parseExpression(raw)
+    if err != nil {
+        return 0, err
+    }
+    exprID := nextExprID()
+
+    // Сразу сохраняем в БД связь с пользователем
+    rec := &db.Expression{
+        UserID:   userID,
+        ExprText: raw,
+        Result:   0,
+    }
+    if _, err := db.InsertExpression(context.Background(), rec); err != nil {
+        return 0, err
+    }
+
+    // Дальнейшая внутренняя логика разбивки на задачи…
+    var taskIDs []int
+    // Распаковываем корневой taskID в _, чтобы не было ошибки
+    _, _, err = buildTasks(node, exprID, &taskIDs)
+    if err != nil {
+        return 0, err
+    }
+
+    return exprID, nil
 }
 
 func GetExpressions() []*Expression {
