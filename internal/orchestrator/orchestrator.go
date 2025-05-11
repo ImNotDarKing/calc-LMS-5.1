@@ -1,12 +1,13 @@
 package orchestrator
 
 import (
+	"context"
 	"errors"
 	"math"
 	"strconv"
 	"strings"
 	"sync"
-	"context"
+
 	"github.com/ImNotDarKing/calc-LMS-5.1/internal/db"
 )
 
@@ -142,41 +143,34 @@ func parseTerm(p *parser) (*Node, error) {
 }
 
 func parseFactor(p *parser) (*Node, error) {
-    p.skipWhitespace()
-    ch := p.peek()
-    if ch >= '0' && ch <= '9' {
-        start := p.pos
-        for p.pos < len(p.input) && p.input[p.pos] >= '0' && p.input[p.pos] <= '9' {
-            p.pos++
-        }
-        if p.pos < len(p.input) && p.input[p.pos] == '.' {
-            p.pos++
-            for p.pos < len(p.input) && p.input[p.pos] >= '0' && p.input[p.pos] <= '9' {
-                p.pos++
-            }
-        }
-        numStr := p.input[start:p.pos]
-        val, err := strconv.ParseFloat(numStr, 64)
-        if err != nil {
-            return nil, err
-        }
-        return &Node{Op: "", Value: val}, nil
-    } else if ch == '(' {
-        p.next()
-        node, err := parseExpr(p)
-        if err != nil {
-            return nil, err
-        }
-        p.skipWhitespace()
-        if p.peek() != ')' {
-            return nil, errors.New("missing closing parenthesis")
-        }
-        p.next()
-        return node, nil
-    }
-    return nil, errors.New("unexpected character: " + string(ch))
+	p.skipWhitespace()
+	ch := p.peek()
+	if ch >= '0' && ch <= '9' {
+		start := p.pos
+		for p.pos < len(p.input) && (p.input[p.pos] >= '0' && p.input[p.pos] <= '9' || p.input[p.pos] == '.') {
+			p.pos++
+		}
+		numStr := p.input[start:p.pos]
+		val, err := strconv.ParseFloat(numStr, 64)
+		if err != nil {
+			return nil, err
+		}
+		return &Node{Op: "", Value: val}, nil
+	} else if ch == '(' {
+		p.next()
+		node, err := parseExpr(p)
+		if err != nil {
+			return nil, err
+		}
+		p.skipWhitespace()
+		if p.peek() != ')' {
+			return nil, errors.New("missing closing parenthesis")
+		}
+		p.next()
+		return node, nil
+	}
+	return nil, errors.New("unexpected character: " + string(ch))
 }
-
 
 func buildTasks(node *Node, exprID int, taskIDs *[]int) (float64, int, error) {
 	if node == nil {
@@ -259,22 +253,37 @@ func AddExpression(raw string, userID int64) (int, error) {
     if err != nil {
         return 0, err
     }
-    exprID := nextExprID()
 
-    // Сразу сохраняем в БД связь с пользователем
     rec := &db.Expression{
         UserID:   userID,
         ExprText: raw,
         Result:   0,
     }
-    if _, err := db.InsertExpression(context.Background(), rec); err != nil {
+    id64, err := db.InsertExpression(context.Background(), rec)
+    if err != nil {
+        return 0, err
+    }
+    exprID := int(id64)
+
+    var taskIDs []int
+    _, rootID, err := buildTasks(node, exprID, &taskIDs)
+    if err != nil {
         return 0, err
     }
 
-    var taskIDs []int
-    _, _, err = buildTasks(node, exprID, &taskIDs)
-    if err != nil {
-        return 0, err
+    expressions[exprID] = &Expression{
+        ID:         exprID,
+        Raw:        raw,
+        Status:     "pending",
+        TaskIDs:    taskIDs,
+        RootTaskID: rootID,
+    }
+
+    for _, tid := range taskIDs {
+        t := tasks[tid]
+        if t.LeftDependency == 0 && t.RightDependency == 0 {
+            readyTasks = append(readyTasks, t)
+        }
     }
 
     return exprID, nil
@@ -309,38 +318,48 @@ func GetReadyTask() (*Task, error) {
 }
 
 func CompleteTask(taskID int, result float64) error {
-	exprMutex.Lock()
-	defer exprMutex.Unlock()
-	t, ok := tasks[taskID]
-	if !ok {
-		return errors.New("task not found")
-	}
-	if t.Status != "pending" {
-		return errors.New("task already completed")
-	}
-	t.Result = result
-	t.Status = "completed"
-	for _, tid := range expressions[t.ExpressionID].TaskIDs {
-		child := tasks[tid]
-		updated := false
-		if child.LeftDependency == t.ID {
-			child.Arg1 = result
-			child.LeftDependency = 0
-			updated = true
-		}
-		if child.RightDependency == t.ID {
-			child.Arg2 = result
-			child.RightDependency = 0
-			updated = true
-		}
-		if updated && child.LeftDependency == 0 && child.RightDependency == 0 && child.Status == "pending" {
-			readyTasks = append(readyTasks, child)
-		}
-	}
-	expr := expressions[t.ExpressionID]
-	if t.ID == expr.RootTaskID {
-		expr.Status = "completed"
-		expr.Result = result
-	}
-	return nil
+    exprMutex.Lock()
+    defer exprMutex.Unlock()
+
+    t, ok := tasks[taskID]
+    if !ok {
+        return errors.New("task not found")
+    }
+    if t.Status != "pending" {
+        return errors.New("task already completed")
+    }
+
+    t.Result = result
+    t.Status = "completed"
+
+    for _, cid := range expressions[t.ExpressionID].TaskIDs {
+        child := tasks[cid]
+        var becameReady bool
+
+        if child.LeftDependency == t.ID {
+            child.Arg1 = result
+            child.LeftDependency = 0
+            becameReady = true
+        }
+        if child.RightDependency == t.ID {
+            child.Arg2 = result
+            child.RightDependency = 0
+            becameReady = true
+        }
+
+        if becameReady && child.LeftDependency == 0 && child.RightDependency == 0 && child.Status == "pending" {
+            readyTasks = append(readyTasks, child)
+        }
+    }
+
+    expr := expressions[t.ExpressionID]
+    if t.ID == expr.RootTaskID {
+        expr.Status = "completed"
+        expr.Result = result
+        if err := db.UpdateExpressionResult(context.Background(), int64(expr.ID), result); err != nil {
+            return err
+        }
+    }
+
+    return nil
 }

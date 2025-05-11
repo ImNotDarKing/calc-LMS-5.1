@@ -39,7 +39,7 @@ func LoginHandler(w http.ResponseWriter, r *http.Request) {
         return
     }
 
-    exp := time.Now().Add(24 * time.Hour)
+    exp := time.Now().Add(1 * time.Hour)
     token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.RegisteredClaims{
         Subject:   strconv.FormatInt(user.ID, 10),
         ExpiresAt: jwt.NewNumericDate(exp),

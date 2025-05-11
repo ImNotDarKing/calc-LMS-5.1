@@ -100,7 +100,7 @@ func main() {
 	cpStr := os.Getenv("COMPUTING_POWER")
 	cp, err := strconv.Atoi(cpStr)
 	if err != nil || cp <= 0 {
-		cp = 2
+		cp = 4
 	}
 	log.Printf("Starting agent with computing power: %d", cp)
 	var wg sync.WaitGroup

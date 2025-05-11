@@ -1,36 +1,55 @@
-<html lang="en">
+<!DOCTYPE html>
+<html lang="ru">
 <head>
-    <meta charset="UTF-8">
-    <meta http-equiv="X-UA-Compatible" content="IE=edge">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="stylesheet" href="style.css">
-    <title>Calc LMS</title>
+  <meta charset="UTF-8">
+  <title>Calc LMS</title>
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<div class="container">
-    <h1>Calc LMS</h1>
+  <h1>Calc LMS</h1>
 
-    <div id="auth-section">
-        <h2>Register</h2>
-        <input type="text" id="reg-login" placeholder="Login">
-        <input type="password" id="reg-password" placeholder="Password">
-        <button id="btn-register">Register</button>
-        <hr>
-        <h2>Login</h2>
-        <input type="text" id="login-login" placeholder="Login">
-        <input type="password" id="login-password" placeholder="Password">
-        <button id="btn-login">Login</button>
-    </div>
+  <nav>
+    <button id="btn-show-login">Вход</button>
+    <button id="btn-show-register">Регистрация</button>
+    <button id="btn-logout" class="hidden">Выйти</button>
+  </nav>
 
-    <div id="app-section" class="hidden">
-        <button id="btn-logout">Logout</button>
-        <h2>Submit Expression</h2>
-        <input type="text" id="expr-input" placeholder="Enter expression, e.g. 2+2">
-        <button id="btn-submit">Calculate</button>
-        <h2>Your Expressions</h2>
-        <ul id="expr-list"></ul>
-    </div>
-</div>
-<script src="main.js"></script>
+  <form id="login-form">
+    <h2>Вход</h2>
+    <input type="text" id="login-login" placeholder="Логин" required>
+    <input type="password" id="login-password" placeholder="Пароль" required>
+    <button type="submit">Войти</button>
+    <div id="login-error" style="color:red;"></div>
+  </form>
+
+  <form id="register-form" class="hidden">
+    <h2>Регистрация</h2>
+    <input type="text" id="reg-login" placeholder="Логин" required>
+    <input type="password" id="reg-password" placeholder="Пароль" required>
+    <button type="submit">Зарегистрироваться</button>
+    <div id="register-error" style="color:red;"></div>
+  </form>
+
+  <div id="app" class="hidden">
+    <form id="calc-form">
+      <input type="text" id="expression" placeholder="Например 2+2" required>
+      <button type="submit">Вычислить</button>
+      <div id="calc-error" style="color:red;"></div>
+    </form>
+
+    <h2>Результаты</h2>
+    <table id="results-table">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Выражение</th>
+          <th>Результат</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+
+  <script src="main.js"></script>
 </body>
 </html>

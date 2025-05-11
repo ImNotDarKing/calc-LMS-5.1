@@ -1,52 +1,88 @@
-package orchestrator_test
+package orchestrator
 
 import (
-	"github.com/ImNotDarKing/calc-LMS-5.1/internal/orchestrator"
+	"context"
 	"math"
 	"testing"
+
+	"github.com/ImNotDarKing/calc-LMS-5.1/internal/db"
 )
 
-func TestAddExpression_SingleDigit(t *testing.T) {
-	id, err := orchestrator.AddExpression("2+3")
+func resetState() {
+	exprMutex.Lock()
+	defer exprMutex.Unlock()
+	expressions = make(map[int]*Expression)
+	tasks = make(map[int]*Task)
+	readyTasks = make([]*Task, 0)
+	exprCounter = 0
+	taskCounter = 0
+}
+
+func TestParseExpression_Simple(t *testing.T) {
+	node, err := parseExpression("2+3*4 - (1+1)")
 	if err != nil {
-		t.Errorf("Expected no error, got %v", err)
+		t.Fatalf("unexpected parse error: %v", err)
 	}
-	expr, found := orchestrator.GetExpression(id)
-	if !found {
-		t.Errorf("Expression not found")
+	if node.Op != "-" {
+		t.Errorf("expected root op '-', got %q", node.Op)
 	}
-	if expr.Status != "pending" && expr.Status != "completed" {
-		t.Errorf("Unexpected expression status: %s", expr.Status)
+	if node.Left.Op != "+" && node.Left.Op != "*" {
+		t.Errorf("unexpected left node op %q", node.Left.Op)
 	}
 }
 
-func TestAddExpression_MultiDigit(t *testing.T) {
-    id, err := orchestrator.AddExpression("12+3")
-    if err != nil {
-        t.Errorf("Expected no error, got %v", err)
-    }
-    expr, found := orchestrator.GetExpression(id)
-    if !found {
-        t.Fatalf("Expression #%d not found", id)
-    }
-    if expr.Status != "pending" && expr.Status != "completed" {
-        t.Errorf("Unexpected status for multi-digit expr: %s", expr.Status)
-    }
+func TestBuildTasks_And_Complete(t *testing.T) {
+	resetState()
+
+	var ids []int
+	val, rootID, err := buildTasks(&Node{
+		Op: "-",
+		Left: &Node{Op: "", Value: 5},
+		Right: &Node{Op: "", Value: 2},
+	}, 42, &ids)
+	if err != nil {
+		t.Fatalf("buildTasks error: %v", err)
+	}
+	if !math.IsNaN(val) {
+		t.Error("expected NaN for non-leaf buildTasks return")
+	}
+	if len(ids) != 1 {
+		t.Errorf("expected 1 task, got %d", len(ids))
+	}
+	taskID := rootID
+	if err := CompleteTask(taskID, 3); err != nil {
+		t.Fatalf("CompleteTask error: %v", err)
+	}
+	exprMutex.Lock()
+	defer exprMutex.Unlock()
+	if expressions[42].Result != 3 {
+		t.Errorf("expected expr.Result=3, got %v", expressions[42].Result)
+	}
 }
 
-func TestAddExpression_Parentheses(t *testing.T) {
-	id, err := orchestrator.AddExpression("(2+3)*4")
+func TestAddExpression_And_Queue(t *testing.T) {
+	resetState()
+	if err := db.InitDB(context.Background(), ":memory:"); err != nil {
+		t.Fatalf("InitDB: %v", err)
+	}
+	if err := db.CreateTables(context.Background()); err != nil {
+		t.Fatalf("CreateTables: %v", err)
+	}
+
+	id, err := AddExpression("7+8", 100)
 	if err != nil {
-		t.Errorf("Expected no error, got %v", err)
+		t.Fatalf("AddExpression: %v", err)
 	}
-	expr, found := orchestrator.GetExpression(id)
-	if !found {
-		t.Errorf("Expression not found")
+	if id == 0 {
+		t.Errorf("expected nonzero expr ID")
 	}
-	if expr.Status != "pending" && expr.Status != "completed" {
-		t.Errorf("Unexpected expression status: %s", expr.Status)
+	exprMutex.Lock()
+	defer exprMutex.Unlock()
+	if len(readyTasks) != 1 {
+		t.Errorf("expected 1 ready task, got %d", len(readyTasks))
 	}
-	if expr.Status == "pending" && !math.IsNaN(expr.Result) {
-		t.Errorf("Expected NaN result for pending expression, got %v", expr.Result)
+	task := readyTasks[0]
+	if task.Arg1 != 7 || task.Arg2 != 8 || task.Operator != "+" {
+		t.Errorf("unexpected ready task content: %#v", task)
 	}
 }
